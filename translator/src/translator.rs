@@ -37,6 +37,8 @@ impl<'a> CppTranslator<'a> {
     }
 
     pub fn translate(&mut self) {
+        // TODO: HACK remove!
+        self.emit("#include \"Range.h\"\n");
         for stmt in self.file.tree.body.iter() {
             self.visit_stmt(stmt);
         }
@@ -314,6 +316,7 @@ impl<'a> TraversalVisitor for CppTranslator<'a> {
                         }
                     }
                 }
+                /*
                 // Then check all the star args if there are any
                 if c.args.len() > num_pos_args {
                     self.emit("{");
@@ -326,6 +329,7 @@ impl<'a> TraversalVisitor for CppTranslator<'a> {
                     }
                     self.emit("}");
                 }
+                */
             },
             _ => {
                 println!("Shouldn't hit this code path");
@@ -443,35 +447,17 @@ impl<'a> TraversalVisitor for CppTranslator<'a> {
     }
 
     fn visit_for(&mut self, f: &For) {
-        let mut bound = None;
-        match &f.iter {
-            Expression::Call(c) => {
-                match &c.func {
-                    Expression::Name(n) => {
-                        if n.id == "range" {
-                            bound = Some(c.args[0].clone());
-                        }
-                    }
-                    _ => {}
-                }
-            },
-            _ => {}
-        }
-        self.emit("for(int ");
+        self.emit("for( auto ");
         self.visit_expr(&f.target);
-        self.emit(" = 0; ");
-        self.visit_expr(&f.target);
-        self.emit(" < ");
-        self.visit_expr(&bound.unwrap());
-        self.emit("; ++");
-        self.visit_expr(&f.target);
+        self.emit(" : ");
+        self.visit_expr(&f.iter);
         self.emit(") {\n");
+
         self.indent_level += 1;
         for stmt in &f.body {
             self.visit_stmt(stmt);
         }
         self.indent_level -= 1;
-        self.emit_indent();
         self.emit("}\n");
     }
 }

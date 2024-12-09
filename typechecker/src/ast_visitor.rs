@@ -339,7 +339,7 @@ pub trait TraversalVisitor {
     }
 
     fn visit_pass(&mut self, _p: &Pass) {
-        todo!()
+        // todo!()
     }
 
     fn visit_delete(&mut self, _d: &Delete) {
