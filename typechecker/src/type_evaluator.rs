@@ -1783,7 +1783,7 @@ impl<'a> TypeEvaluator<'a> {
     ) -> PythonType {
         match &python_type {
             PythonType::None => todo!(),
-            PythonType::Unknown => todo!(),
+            PythonType::Unknown => PythonType::Unknown,
             PythonType::Any => todo!(),
             PythonType::LiteralValue(known_value) => todo!(),
             PythonType::Module(module_ref) => todo!(),
@@ -1791,11 +1791,13 @@ impl<'a> TypeEvaluator<'a> {
             PythonType::Callable(callable_type) => todo!(),
             PythonType::Coroutine(coroutine_type) => todo!(),
             PythonType::Class(class_type) => {
+                println!("{}", class_type);
                 let mut resolved = vec![];
                 for tp in type_parameters.iter() {
-                    let specialized_type =
-                        self.resolve_generics(tp, type_parameters, specialized_types);
-                    resolved.push(specialized_type);
+                    println!("tp: {}", tp);
+                    // let specialized_type =
+                    //    self.resolve_generics(tp, type_parameters, specialized_types);
+                    //resolved.push(specialized_type);
                 }
 
                 let mut new_class = class_type.clone();
