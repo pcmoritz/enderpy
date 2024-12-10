@@ -84,12 +84,12 @@ impl<'a> TypeEvaluator<'a> {
                 let typ = match &c.value {
                     // Constants are not literals unless they are explicitly
                     // typing.readthedocs.io/en/latest/spec/literal.html#backwards-compatibility
-                    ast::ConstantValue::Int => self.get_builtin_type("int"),
-                    ast::ConstantValue::Float => self.get_builtin_type("float"),
-                    ast::ConstantValue::Str(_) => self.get_builtin_type("str"),
-                    ast::ConstantValue::Bool(_) => self.get_builtin_type("bool"),
+                    ast::ConstantValue::Int => self.get_builtin_type("int").map(types::as_instance),
+                    ast::ConstantValue::Float => self.get_builtin_type("float").map(types::as_instance),
+                    ast::ConstantValue::Str(_) => self.get_builtin_type("str").map(types::as_instance),
+                    ast::ConstantValue::Bool(_) => self.get_builtin_type("bool").map(types::as_instance),
                     ast::ConstantValue::None => Some(PythonType::None),
-                    ast::ConstantValue::Bytes => self.get_builtin_type("bytes"),
+                    ast::ConstantValue::Bytes => self.get_builtin_type("bytes").map(types::as_instance),
                     ast::ConstantValue::Ellipsis => Some(PythonType::Any),
                     // TODO: implement
                     ast::ConstantValue::Tuple => Some(PythonType::Unknown),
@@ -123,7 +123,8 @@ impl<'a> TypeEvaluator<'a> {
                             );
                             Ok(return_type)
                         } else if let PythonType::Class(c) = &called_type {
-                            Ok(called_type)
+                            // This instantiates the class
+                            Ok(types::as_instance(called_type))
                         } else if let PythonType::TypeVar(t) = &called_type {
                             let Some(first_arg) = call.args.first() else {
                                 bail!("TypeVar must be called with a name");
@@ -1526,11 +1527,11 @@ impl<'a> TypeEvaluator<'a> {
         let mut signature = Vec::with_capacity(arguments.len());
         for argument in arguments.posonlyargs.iter() {
             if let Some(type_annotation) = &argument.annotation {
-                signature.push(CallableArgs::PositionalOnly(self.get_annotation_type(
+                signature.push(CallableArgs::PositionalOnly(types::as_instance(self.get_annotation_type(
                     type_annotation,
                     symbol_table,
                     scope_id,
-                )));
+                ))));
             } else {
                 signature.push(CallableArgs::PositionalOnly(self.get_name_type(
                     &argument.arg,
@@ -1542,11 +1543,11 @@ impl<'a> TypeEvaluator<'a> {
         }
         for positional in arguments.args.iter() {
             if let Some(type_annotation) = &positional.annotation {
-                signature.push(CallableArgs::Positional(self.get_annotation_type(
+                signature.push(CallableArgs::Positional(types::as_instance(self.get_annotation_type(
                     type_annotation,
                     symbol_table,
                     scope_id,
-                )));
+                ))));
             } else {
                 signature.push(CallableArgs::Positional(self.get_name_type(
                     &positional.arg,
