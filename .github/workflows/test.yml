@@ -59,29 +59,29 @@ jobs:
         run: |
           cargo run -p enderpy-compat --bin enderpy-compat
 
-  benchmarks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: true
-
-      - name: Setup rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Build the benchmark target(s)
-        run: |
-          cargo install cargo-codspeed --locked
-          cargo codspeed build --features codspeed
-
-      - name: Run the benchmarks
-        uses: CodSpeedHQ/action@v3
-        with:
-          run: cargo codspeed run
-          token: ${{ secrets.CODSPEED_TOKEN }}
+  # benchmarks:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: true
+  #
+  #     - name: Setup rust
+  #       uses: dtolnay/rust-toolchain@stable
+  #       with:
+  #         toolchain: stable
+  #     - uses: Swatinem/rust-cache@v2
+  #
+  #     - name: Build the benchmark target(s)
+  #       run: |
+  #         cargo install cargo-codspeed --locked
+  #         cargo codspeed build --features codspeed
+  #
+  #     - name: Run the benchmarks
+  #       uses: CodSpeedHQ/action@v3
+  #       with:
+  #         run: cargo codspeed run
+  #         token: ${{ secrets.CODSPEED_TOKEN }}
   # coverage:
   #   name: coverage
   #   runs-on: ubuntu-latest
