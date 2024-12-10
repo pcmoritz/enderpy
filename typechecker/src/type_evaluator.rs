@@ -22,6 +22,7 @@ use super::{
     },
 };
 use crate::{
+    get_module_name,
     build::BuildManager,
     semantic_analyzer::get_member_access_info,
     symbol_table::{self, Class, Declaration, DeclarationPath, Id, SymbolTable, SymbolTableNode},
@@ -59,6 +60,13 @@ bitflags::bitflags! {
     }
 }
 
+fn as_instance(class_type: PythonType) -> PythonType {
+    let PythonType::Class(c) = class_type else {
+        return PythonType::Unknown;
+    };
+    PythonType::Instance(types::InstanceType::new(c.clone(), [].to_vec()))
+}
+
 /// Struct for evaluating the type of an expression
 impl<'a> TypeEvaluator<'a> {
     pub fn new(build_manager: &'a BuildManager) -> Self {
@@ -84,12 +92,12 @@ impl<'a> TypeEvaluator<'a> {
                 let typ = match &c.value {
                     // Constants are not literals unless they are explicitly
                     // typing.readthedocs.io/en/latest/spec/literal.html#backwards-compatibility
-                    ast::ConstantValue::Int => self.get_builtin_type("int"),
-                    ast::ConstantValue::Float => self.get_builtin_type("float"),
-                    ast::ConstantValue::Str(_) => self.get_builtin_type("str"),
-                    ast::ConstantValue::Bool(_) => self.get_builtin_type("bool"),
+                    ast::ConstantValue::Int => self.get_builtin_type("int").map(as_instance),
+                    ast::ConstantValue::Float => self.get_builtin_type("float").map(as_instance),
+                    ast::ConstantValue::Str(_) => self.get_builtin_type("str").map(as_instance),
+                    ast::ConstantValue::Bool(_) => self.get_builtin_type("bool").map(as_instance),
                     ast::ConstantValue::None => Some(PythonType::None),
-                    ast::ConstantValue::Bytes => self.get_builtin_type("bytes"),
+                    ast::ConstantValue::Bytes => self.get_builtin_type("bytes").map(as_instance),
                     ast::ConstantValue::Ellipsis => Some(PythonType::Any),
                     // TODO: implement
                     ast::ConstantValue::Tuple => Some(PythonType::Unknown),
@@ -123,7 +131,8 @@ impl<'a> TypeEvaluator<'a> {
                             );
                             Ok(return_type)
                         } else if let PythonType::Class(c) = &called_type {
-                            Ok(called_type)
+                            // This instantiates the class
+                            Ok(as_instance(called_type))
                         } else if let PythonType::TypeVar(t) = &called_type {
                             let Some(first_arg) = call.args.first() else {
                                 bail!("TypeVar must be called with a name");
@@ -551,7 +560,7 @@ impl<'a> TypeEvaluator<'a> {
         let expr_type = match type_annotation {
             Expression::Name(name) => {
                 // TODO: Reject this type if the name refers to a variable.
-                self.get_name_type(&name.id, Some(name.node.start), symbol_table, scope_id)
+                as_instance(self.get_name_type(&name.id, Some(name.node.start), symbol_table, scope_id))
             }
             Expression::Constant(ref c) => match c.value {
                 ast::ConstantValue::None => PythonType::None,
@@ -677,6 +686,17 @@ impl<'a> TypeEvaluator<'a> {
                     _ => todo!(),
                 }
             }
+            Expression::Attribute(a) => {
+                match &a.value {
+                    Expression::Name(n) => {
+                        let Some(typ) = self.lookup_on_module(symbol_table, scope_id, &n.id, &a.attr) else {
+                            return PythonType::Unknown;
+                        };
+                        return as_instance(typ);
+                    },
+                    _ => todo!(),
+                };
+            },
             _ => PythonType::Unknown,
         };
 
@@ -730,6 +750,8 @@ impl<'a> TypeEvaluator<'a> {
                 };
             }
         }
+
+        println!("name {}", name);
 
         if let Some(t) = self.get_builtin_type(name) {
             t
@@ -1517,6 +1539,39 @@ impl<'a> TypeEvaluator<'a> {
         symbol.map(|node| self.get_symbol_type(node, symbol_table, None))
     }
 
+    /// Find a type inside a Python module
+    fn lookup_on_module(
+        &self,
+        symbol_table: &SymbolTable,
+        scope_id: u32,
+        module_name: &str,
+        attr: &str,
+    ) -> Option<PythonType> {
+        // See if the module is in the symbol table
+        let symbol_table_entry = symbol_table.lookup_in_scope(module_name, scope_id)?;
+        match symbol_table_entry.last_declaration() {
+            Declaration::Alias(a) => {
+                let module_symbol_table = self.get_symbol_table_for_module(&a, module_name)?;
+                return Some(self.get_name_type(attr, None, &module_symbol_table, 0));
+            }
+            _ => {}
+        };
+        None
+    }
+
+    fn get_symbol_table_for_module(&self, alias: &symbol_table::Alias, module_name: &str) -> Option<Arc<SymbolTable>> {
+        let Some(ref resolved_import) = alias.import_result else {
+            return None;
+        };
+        for id in resolved_import.resolved_ids.iter() {
+            let module_symbol_table = self.get_symbol_table(id);
+            if module_name == get_module_name(module_symbol_table.file_path.as_path()) {
+                return Some(module_symbol_table);
+            }
+        }
+        return None;
+    }
+
     fn get_function_signature(
         &self,
         arguments: &ast::Arguments,
@@ -1683,7 +1738,7 @@ impl<'a> TypeEvaluator<'a> {
     ) -> PythonType {
         match &python_type {
             PythonType::None => todo!(),
-            PythonType::Unknown => todo!(),
+            PythonType::Unknown => panic!("XXX"),
             PythonType::Any => todo!(),
             PythonType::LiteralValue(known_value) => todo!(),
             PythonType::Module(module_ref) => todo!(),
@@ -1693,9 +1748,10 @@ impl<'a> TypeEvaluator<'a> {
             PythonType::Class(class_type) => {
                 let mut resolved = vec![];
                 for tp in type_parameters.iter() {
-                    let specialized_type =
-                        self.resolve_generics(tp, type_parameters, specialized_types);
-                    resolved.push(specialized_type);
+                    // let specialized_type =
+                    //     self.resolve_generics(tp, type_parameters, specialized_types);
+                    // resolved.push(specialized_type);
+                    resolved.push(tp.clone());
                 }
 
                 let mut new_class = class_type.clone();

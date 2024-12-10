@@ -40,5 +40,16 @@ pub fn find_project_root(path: &Path) -> &Path {
 }
 
 pub fn get_module_name(path: &Path) -> String {
-    path.to_str().unwrap().replace(['/', '\\'], ".")
+    // First we strip .pyi and / or __init__.pyi from the end
+    let mut s = path.to_str().unwrap();
+    s = match s.strip_suffix("/__init__.pyi") {
+        Some(new) => new,
+        None => s
+    };
+    s = match s.strip_suffix(".pyi") {
+        Some(new) => new,
+        None => s
+    };
+    // And then we replace the slashes with .
+    s.replace(['/', '\\'], ".")
 }
