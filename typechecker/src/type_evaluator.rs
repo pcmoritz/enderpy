@@ -84,12 +84,12 @@ impl<'a> TypeEvaluator<'a> {
                 let typ = match &c.value {
                     // Constants are not literals unless they are explicitly
                     // typing.readthedocs.io/en/latest/spec/literal.html#backwards-compatibility
-                    ast::ConstantValue::Int => self.get_builtin_type("int"),
-                    ast::ConstantValue::Float => self.get_builtin_type("float"),
-                    ast::ConstantValue::Str(_) => self.get_builtin_type("str"),
-                    ast::ConstantValue::Bool(_) => self.get_builtin_type("bool"),
+                    ast::ConstantValue::Int => self.get_builtin_type("int").map(types::as_instance),
+                    ast::ConstantValue::Float => self.get_builtin_type("float").map(types::as_instance),
+                    ast::ConstantValue::Str(_) => self.get_builtin_type("str").map(types::as_instance),
+                    ast::ConstantValue::Bool(_) => self.get_builtin_type("bool").map(types::as_instance),
                     ast::ConstantValue::None => Some(PythonType::None),
-                    ast::ConstantValue::Bytes => self.get_builtin_type("bytes"),
+                    ast::ConstantValue::Bytes => self.get_builtin_type("bytes").map(types::as_instance),
                     ast::ConstantValue::Ellipsis => Some(PythonType::Any),
                     // TODO: implement
                     ast::ConstantValue::Tuple => Some(PythonType::Unknown),
@@ -123,7 +123,9 @@ impl<'a> TypeEvaluator<'a> {
                             );
                             Ok(return_type)
                         } else if let PythonType::Class(c) = &called_type {
-                            Ok(called_type)
+                            // This instantiates the class
+                            Ok(types::as_instance(called_type))
+
                         } else if let PythonType::TypeVar(t) = &called_type {
                             let Some(first_arg) = call.args.first() else {
                                 bail!("TypeVar must be called with a name");
@@ -358,6 +360,14 @@ impl<'a> TypeEvaluator<'a> {
                             Ok(PythonType::Unknown)
                         }
                     }
+                    PythonType::Instance(ref c) => {
+                        let attribute_on_c = self.lookup_on_class(symbol_table, &c.class_type, &a.attr);
+                        if let Some(attribute_on_c) = attribute_on_c {
+                            Ok(attribute_on_c)
+                        } else {
+                            Ok(PythonType::Unknown)
+                        }
+                    }
                     PythonType::Module(module) => {
                         let module_sym_table = self.get_symbol_table(&module.module_id);
                         Ok(self.get_name_type(&a.attr, None, &module_sym_table, 0))
@@ -551,7 +561,7 @@ impl<'a> TypeEvaluator<'a> {
         let expr_type = match type_annotation {
             Expression::Name(name) => {
                 // TODO: Reject this type if the name refers to a variable.
-                self.get_name_type(&name.id, Some(name.node.start), symbol_table, scope_id)
+                types::as_instance(self.get_name_type(&name.id, Some(name.node.start), symbol_table, scope_id))
             }
             Expression::Constant(ref c) => match c.value {
                 ast::ConstantValue::None => PythonType::None,
@@ -847,7 +857,7 @@ impl<'a> TypeEvaluator<'a> {
                                 .resolve_generics(
                                     &iter_method.return_type,
                                     &instance_type.class_type.type_parameters,
-                                    &instance_type.specialized_type_parameters,
+                                    &instance_type.class_type.specialized,
                                 )
                                 .class()
                             else {

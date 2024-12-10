@@ -387,3 +387,10 @@ impl Display for PythonType {
         write!(f, "{}", type_str)
     }
 }
+
+pub fn as_instance(python_type: PythonType) -> PythonType {
+    let PythonType::Class(c) = python_type else {
+        return python_type;
+    };
+    PythonType::Instance(InstanceType::new(c.clone(), [].to_vec()))
+}
