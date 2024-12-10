@@ -693,6 +693,7 @@ mod tests {
     }
 
     type_eval_test!(basic_types, "test_data/inputs/basic_types.py");
+    type_eval_test!(regressions, "test_data/inputs/regressions.py");
     type_eval_test!(
         generics_basic,
         "test_data/inputs/conformance_tests/generics_basic.py"

@@ -208,7 +208,7 @@ impl SymbolTable {
     /// Sets the current scope to the scope that starts at the given position
     pub fn set_scope(&mut self, pos: u32) {
         self.prev_scope_id = Some(self.current_scope_id);
-        let scope = self.scopes.iter().find(|scope| scope.start_pos == pos);
+        let scope = self.scopes.iter().rev().find(|scope| scope.start_pos == pos);
         if let Some(scope) = scope {
             self.current_scope_id = scope.id;
         } else {
@@ -218,7 +218,7 @@ impl SymbolTable {
 
     /// Returns the id of the scope starting at position
     pub fn get_scope(&self, pos: u32) -> u32 {
-        let scope = self.scopes.iter().find(|scope| scope.start_pos == pos);
+        let scope = self.scopes.iter().rev().find(|scope| scope.start_pos == pos);
         if let Some(scope) = scope {
             scope.id
         } else {
