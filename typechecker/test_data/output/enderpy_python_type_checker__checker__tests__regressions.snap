@@ -1,0 +1,23 @@
+---
+source: typechecker/src/checker.rs
+description: "1: def f(i: int) -> int:\n2:     return i + 1\n"
+expression: result
+snapshot_kind: text
+---
+Line 1: def f(i: int) -> int:
+
+Expr types in the line --->:
+        f => (function) Callable (pos: (class) int): (class) int
+        i: int => (instance) int
+        int => (class) int
+        int => (class) int
+
+---
+Line 2:     return i + 1
+
+Expr types in the line --->:
+        i => (instance) int
+        i + 1 => (instance) int
+        1 => (class) int
+
+---
